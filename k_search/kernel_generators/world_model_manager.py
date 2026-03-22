@@ -188,7 +188,7 @@ class WorldModelManager:
 
         if not parsed:
             print(f"\n[DEBUG] _llm_call output parsing failed! Raw output was:\n{raw}\n", flush=True)
-            import pdb; pdb.set_trace()
+            import ipdb; ipdb.set_trace()
 
         if parsed:
             # Persist a bounded excerpt of the reference implementation into the root node's notes.

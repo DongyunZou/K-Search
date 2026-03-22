@@ -109,7 +109,9 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                 )
                 return (response.output_text or "").strip()
             response = self.client.chat.completions.create(
-                model=self.model_name, messages=[{"role": "user", "content": prompt}]
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=8192
             )
             return (response.choices[0].message.content or "").strip()
 

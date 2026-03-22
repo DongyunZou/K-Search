@@ -160,7 +160,9 @@ class KernelGenerator:
                     generated_code = response.output_text.strip()
                 else:  # We use the completions api for OpenAI SDK compatible models
                     response = self.client.chat.completions.create(
-                        model=self.model_name, messages=[{"role": "user", "content": effective_prompt}]
+                        model=self.model_name,
+                        messages=[{"role": "user", "content": effective_prompt}],
+                        max_tokens=8192
                     )
                     generated_code = response.choices[0].message.content.strip()
 
