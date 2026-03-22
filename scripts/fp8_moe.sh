@@ -1,5 +1,5 @@
 export WANDB_ENTITY="han2024"
-KSEARCH_ROOT="${KSEARCH_ROOT:-$PWD"
+KSEARCH_ROOT="${KSEARCH_ROOT:-$PWD}"
 DATASET_ROOT="$HOME/dataset/flashinfer-trace"
 
 MODEL_NAME="${MODEL_NAME:-gpt-5.4}"
