@@ -185,6 +185,11 @@ class WorldModelManager:
         )
         raw = (self._llm_call(prompts.init_prompt) or "").strip()
         parsed = try_parse_world_model_json(raw)
+
+        if not parsed:
+            print(f"\n[DEBUG] _llm_call output parsing failed! Raw output was:\n{raw}\n", flush=True)
+            import pdb; pdb.set_trace()
+
         if parsed:
             # Persist a bounded excerpt of the reference implementation into the root node's notes.
             # Root stays a dummy decision/choice=null node; this is just a stable "anchor" for humans and WM.
