@@ -167,8 +167,9 @@ class WorldModelManager:
                                     updated = dump_world_model_obj(obj) or existing
                                     self.set(name, updated)
                                     return updated
-                except Exception:
-                    pass
+                except Exception as e:
+                    import ipdb; ipdb.set_trace()
+                    print(f"Error when initializing world model: {e}")
             return existing
 
         prompts = build_world_model_prompts(
@@ -221,8 +222,9 @@ class WorldModelManager:
                                     dt["active_leaf_id"] = root_id
                                     parsed = dump_world_model_obj(obj) or parsed
                                     break
-                except Exception:
-                    pass
+                except Exception as e:
+                    import ipdb; ipdb.set_trace()
+                    print(f"Error when initializing world model: {e}")
             self.set(name, parsed)
             return parsed
         return None
