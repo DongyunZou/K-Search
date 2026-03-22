@@ -1,6 +1,6 @@
 export WANDB_ENTITY="han2024"
-KSEARCH_ROOT="/workspace/code/K-Search"
-DATASET_ROOT="/root/dataset/flashinfer-trace"
+KSEARCH_ROOT="${KSEARCH_ROOT:-$PWD"
+DATASET_ROOT="$HOME/dataset/flashinfer-trace"
 
 MODEL_NAME="${MODEL_NAME:-gpt-5.4}"
 API_KEY="${API_KEY:-}"
