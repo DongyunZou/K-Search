@@ -7,7 +7,7 @@ API_KEY="${API_KEY:-}"
 BASE_URL="${BASE_URL:-}"
 
 DEFINITION="moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048"
-LANGUAGE="cuda"
+LANGUAGE="${LANGUAGE:-cuda}"
 TARGET_GPU="${TARGET_GPU:-H100}"
 
 BASELINE_SOLUTION="flashinfer_wrapper_9sdjf3"
