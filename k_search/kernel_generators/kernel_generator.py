@@ -162,7 +162,7 @@ class KernelGenerator:
                     response = self.client.chat.completions.create(
                         model=self.model_name,
                         messages=[{"role": "user", "content": effective_prompt}],
-                        max_tokens=8192
+                        max_tokens=16384
                     )
                     generated_code = response.choices[0].message.content.strip()
 
@@ -175,6 +175,7 @@ class KernelGenerator:
                     required = ("kernel.h", "kernel.cu", "main.cpp")
                     missing = [k for k in required if (k not in cleaned_code) or (not str(cleaned_code.get(k, "")).strip())]
                     if missing:
+                        import ipdb; ipdb.set_trace()
                         raise ValueError(f"missing required XML files: {missing}")
 
                 return {"raw": generated_code, "cleaned": cleaned_code}
