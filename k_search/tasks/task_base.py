@@ -182,6 +182,7 @@ class BuildSpec:
     target_hardware: list[str]
     entry_point: str
     dependencies: list[str] = field(default_factory=list)
+    binding: str = "torch"
 
 
 @dataclass
@@ -385,6 +386,7 @@ def solution_from_json_dict(d: dict[str, Any]) -> Solution:
             target_hardware=list(spec.get("target_hardware", []) or []),
             entry_point=str(spec.get("entry_point", "") or ""),
             dependencies=list(spec.get("dependencies", []) or []),
+            binding=str(d.get("binding", "torch"))
         ),
         sources=sources,
     )

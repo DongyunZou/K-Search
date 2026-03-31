@@ -362,6 +362,11 @@ def main():
     )
     parser.add_argument("--feedback-workloads", nargs="+", default=None, help="Explicit workload UUIDs to use for optimization feedback rounds")
     # Nsight Compute
+    parser.add_argument(
+        "--enable-ncu-profile",
+        action="store_true",
+        help="Enable NCU profiling on the best solution after each cycle and feed metrics to the world model.",
+    )
     parser.add_argument("--feedback-trace-policy", default="first", choices=["first", "random"], help="Policy for selecting feedback traces")
     parser.add_argument(
         "--world-model",
@@ -416,13 +421,12 @@ def main():
             rtol=args.rtol,
             atol=args.atol,
             use_isolated_runner=args.use_isolated_runner,
-            parallel_workloads=args.parallel_workloads,
-            max_parallel_workloads=args.max_parallel_workloads,
             baseline_solution=args.baseline_solution,
             feedback_workloads=args.feedback_workloads,
             feedback_trace_policy=args.feedback_trace_policy,
             num_feedback_workloads=5,
             artifacts_dir=args.artifacts_dir,
+            enable_ncu_profile=args.enable_ncu_profile,
         )
     elif task_source == "gpumode":
         from k_search.tasks.gpu_mode_task import GpuModeTriMulTask

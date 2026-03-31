@@ -77,7 +77,8 @@ cd K-Search
 
 # Install dependencies
 uv pip install openai wandb
-uv pip install git+https://github.com/caoshiyi/flashinfer-bench-ksearch.git
+uv pip install flashinfer-bench
+uv pip install ipdb ninja
 ```
 
 We provide ready-to-use launch scripts under `scripts/` for both tasks. Before running, open the script and set the following variables at the top:

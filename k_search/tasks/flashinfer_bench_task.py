@@ -30,8 +30,7 @@ class FlashInferBenchEvalConfig:
     rtol: float = 1e-2
     atol: float = 1e-2
     use_isolated_runner: bool = False
-    parallel_workloads: bool = False
-    max_parallel_workloads: int = 0
+    enable_ncu_profile: bool = False
 
 
 class FeedbackTraceSelector:
@@ -223,13 +222,12 @@ class FlashInferBenchTask:
         rtol: float,
         atol: float,
         use_isolated_runner: bool,
-        parallel_workloads: bool,
-        max_parallel_workloads: int,
         baseline_solution: Optional[str],
         feedback_workloads: Optional[list[str]],
         feedback_trace_policy: str,
         num_feedback_workloads: int,
         artifacts_dir: str | None = None,
+        enable_ncu_profile: bool = False,
     ) -> "FlashInferBenchTask":
         """
         Convenience factory for scripts/CLI so task-specific init logic lives in the task module.
@@ -241,8 +239,7 @@ class FlashInferBenchTask:
             rtol=float(rtol),
             atol=float(atol),
             use_isolated_runner=bool(use_isolated_runner),
-            parallel_workloads=bool(parallel_workloads),
-            max_parallel_workloads=int(max_parallel_workloads),
+            enable_ncu_profile=bool(enable_ncu_profile),
         )
         return cls.from_dataset_path(
             dataset_path=str(task_path),
@@ -276,10 +273,44 @@ class FlashInferBenchTask:
                 "rtol": float(cfg.rtol),
                 "atol": float(cfg.atol),
                 "use_isolated_runner": bool(cfg.use_isolated_runner),
-                "parallel_workloads": bool(cfg.parallel_workloads),
-                "max_parallel_workloads": int(cfg.max_parallel_workloads),
             },
         }
+
+    def run_ncu_profile(self, solution: "TaskSolution", eval_result: Optional["EvalResult"] = None) -> Optional[Dict[str, Any]]:
+        """Run ncu profiling on the given solution using the first selected workload.
+
+        Returns the raw NCU output dict, or None if ncu profiling is disabled, the eval
+        did not pass, or the call fails.
+        Gated by FlashInferBenchEvalConfig.enable_ncu_profile.
+        """
+        if not self._eval_config.enable_ncu_profile:
+            return None
+        if eval_result is not None and str(getattr(eval_result, "status", "") or "").strip().lower() != "passed":
+            return None
+        if not self._selected_workloads:
+            print("[ncu_profile] No selected workloads; skipping NCU profile.")
+            return None
+        try:
+            from k_search.utils.ncu import run_ncu
+        except ImportError as e:
+            print(f"[ncu_profile] k_search.utils.ncu not available: {e}")
+            return None
+        try:
+            fb_solution = self._to_backend_solution(solution)
+            workload = getattr(self._selected_workloads[0], "workload")
+            output = run_ncu(
+                solution=fb_solution,
+                workload=workload,
+                trace_set_path=self._task_path,
+                ncu_path="/usr/local/cuda/bin/ncu",
+            )
+            result = output if isinstance(output, dict) else {"raw": output}
+            return result
+        except Exception as e:
+            print(f"[ncu_profile] NCU profiling failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
     @staticmethod
     def _to_task_language(lang: Any) -> TaskSupportedLanguages:
@@ -330,6 +361,7 @@ class FlashInferBenchTask:
         tgt_raw = list(tgt0) if isinstance(tgt0, list) else []
         tgt = [str(x) for x in tgt_raw if x is not None and str(x).strip()]
         ep = str(getattr(spec0, "entry_point", "") or "") if spec0 is not None else ""
+        binding = str(getattr(spec0, binding))
         sources0 = getattr(sol, "sources", None)
         sources: list[TaskSourceFile] = []
         if isinstance(sources0, list):
@@ -347,6 +379,7 @@ class FlashInferBenchTask:
                 target_hardware=tgt,
                 entry_point=ep,
                 dependencies=deps,
+                binding=binding,
             ),
             sources=sources or [TaskSourceFile(path="main.py", content="")],
             description=(getattr(sol, "description", None) if isinstance(getattr(sol, "description", None), str) else None),
@@ -380,6 +413,7 @@ class FlashInferBenchTask:
             ],
             entry_point=str(sol.spec.entry_point or "main.py::run"),
             dependencies=[str(x) for x in (sol.spec.dependencies or []) if x is not None and str(x).strip()],
+            binding=sol.spec.binding,
         )
         return FBSolution(
             name=str(sol.name or ""),
@@ -1166,8 +1200,6 @@ Reference Implementation:
                 rtol=float(cfg.rtol),
                 atol=float(cfg.atol),
                 use_isolated_runner=bool(cfg.use_isolated_runner),
-                parallel_workloads=bool(cfg.parallel_workloads),
-                max_parallel_workloads=int(cfg.max_parallel_workloads),
             )
             result_traceset = Benchmark(temp_traceset, bench_cfg).run_all(dump_traces=False)
             traces = self.extract_traces(result_traceset)
@@ -1241,8 +1273,6 @@ Reference Implementation:
             rtol=float(cfg.rtol),
             atol=float(cfg.atol),
             use_isolated_runner=bool(cfg.use_isolated_runner),
-            parallel_workloads=bool(cfg.parallel_workloads),
-            max_parallel_workloads=int(cfg.max_parallel_workloads),
         )
         benchmark = Benchmark(temp_traceset, bench_cfg)
         result_traceset = benchmark.run_all(dump_traces=bool(dump_traces))
@@ -1374,8 +1404,6 @@ Reference Implementation:
             rtol=float(cfg.rtol),
             atol=float(cfg.atol),
             use_isolated_runner=bool(cfg.use_isolated_runner),
-            parallel_workloads=bool(cfg.parallel_workloads),
-            max_parallel_workloads=int(cfg.max_parallel_workloads),
         )
         benchmark = Benchmark(temp_traceset, bench_cfg)
         result_traceset = benchmark.run_all(dump_traces=bool(dump_traces))

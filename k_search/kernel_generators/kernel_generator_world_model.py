@@ -992,6 +992,16 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                     _emit(render_world_model_status(self._wm.get(task.name)))
                     self._persist_world_model_snapshot(task=task)
 
+                # Optional: run NCU profiling on the best solution and attach metrics to eval_result.
+                _run_ncu = getattr(task, "run_ncu_profile", None)
+                if callable(_run_ncu):
+                    try:
+                        ncu_metrics = _run_ncu(cycle_best_solution, cycle_best_eval)
+                        if isinstance(ncu_metrics, dict) and ncu_metrics:
+                            cycle_best_eval.metrics["ncu_profile"] = ncu_metrics
+                    except Exception as _ncu_err:
+                        print(f"[ncu_profile] Error during NCU profiling: {_ncu_err}")
+
                 self._wm.refine(
                     definition_name=task.name,
                     definition_text=definition_text,

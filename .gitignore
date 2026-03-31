@@ -6,3 +6,4 @@ openevolve_output/
 *.log
 exp*
 .env
+.vscode
