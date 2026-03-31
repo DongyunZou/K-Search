@@ -394,15 +394,15 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                     _emit(
                         f"[resume] Loaded best checkpoint: round={_cp.get('round_num')}, score={_initial_best_score:.3f}"
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    raise RuntimeError(f"[resume] Failed to restore best checkpoint: {exc}") from exc
             _prog = self._load_progress(task=task)
             if _prog is not None:
                 try:
                     _initial_cycle_start_round = max(1, int(_prog.get("next_cycle_start_round", 1)))
                     _emit(f"[resume] Continuing from round {_initial_cycle_start_round} (max={max_opt_rounds})")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    raise RuntimeError(f"[resume] Failed to restore progress: {exc}") from exc
 
         # Use the simpler explicit action-cycle loop (v2). This is much easier to reason about:
         # choose action -> attempt 1 (spec/base + action) -> attempts 2..N (debug_and_improve) -> attach+refine/too-hard.
@@ -909,6 +909,9 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                         score=best_score,
                         round_num=round_num,
                     )
+                    # Eagerly persist progress so that a crash after this point
+                    # can resume from at least this round (not from round 1).
+                    self._persist_progress(task=task, next_cycle_start_round=round_num + 1)
 
                 if all_passed:
                     er = round_eval
