@@ -114,6 +114,9 @@ First, download the [FlashInfer Trace](https://huggingface.co/datasets/flashinfe
 # Requires git-lfs
 git lfs install
 git clone https://huggingface.co/datasets/flashinfer-ai/flashinfer-trace
+
+mkdir -p ~/dataset/flashinfer-trace
+uv run hf download flashinfer-ai/mlsys26-contest --repo-type=dataset --local-dir ~/dataset/flashinfer-trace/
 ```
 
 Then edit `scripts/mla_decode_wm.sh` to set the required variables (including `DATASET_ROOT` pointing to the downloaded dataset), and run:
