@@ -89,6 +89,7 @@ def generate_and_evaluate(
     save_results: bool,
     continue_from_solution: Optional[str] = None,
     continue_from_world_model: Optional[str] = None,
+    auto_resume: bool = False,
     num_eval_workload: Optional[int] = None,
     # W&B options
     enable_wandb: bool = False,
@@ -113,6 +114,22 @@ def generate_and_evaluate(
     # Initialize wandb if enabled
     wb_run = None
     if enable_wandb and wandb is not None:
+        # On auto-resume, try to continue the previous W&B run so metrics appear in the same chart.
+        _wb_resume_id: Optional[str] = None
+        if auto_resume:
+            try:
+                from k_search.utils.paths import get_ksearch_artifacts_dir
+                from pathlib import Path as _Path
+                _wb_id_path = (
+                    get_ksearch_artifacts_dir(
+                        base_dir=artifacts_dir, task_name=str(getattr(task, "name", "") or "")
+                    ) / "wandb_run_id.txt"
+                )
+                if _wb_id_path.exists():
+                    _wb_resume_id = _wb_id_path.read_text(encoding="utf-8").strip() or None
+            except Exception:
+                pass
+
         print(f"Initializing wandb with project: {wandb_project} and name: {run_name}")
         try:
             task_cfg = task.get_config_for_logging()
@@ -121,6 +138,8 @@ def generate_and_evaluate(
         wb_run = wandb.init(
             project=wandb_project or os.getenv("WANDB_PROJECT", "flashinfer-bench"),
             name=run_name or os.getenv("RUN_NAME"),
+            id=_wb_resume_id,
+            resume="allow" if _wb_resume_id else None,
             config={
                 "task": task_cfg,
                 "generator": {
@@ -141,6 +160,20 @@ def generate_and_evaluate(
             },
             reinit=True,
         )
+        # Persist run ID so future --auto-resume runs can continue in the same W&B window.
+        if wb_run is not None:
+            try:
+                from k_search.utils.paths import get_ksearch_artifacts_dir
+                from pathlib import Path as _Path
+                _wb_id_path = (
+                    get_ksearch_artifacts_dir(
+                        base_dir=artifacts_dir, task_name=str(getattr(task, "name", "") or "")
+                    ) / "wandb_run_id.txt"
+                )
+                _wb_id_path.parent.mkdir(parents=True, exist_ok=True)
+                _wb_id_path.write_text(str(wb_run.id), encoding="utf-8")
+            except Exception:
+                pass
 
     def _eval_and_report_one(*, sol: Any) -> None:
         def_name = str(getattr(task, "name", "") or "")
@@ -161,6 +194,23 @@ def generate_and_evaluate(
             )
             if saved:
                 print(f"[{def_name}] Saved eval report to: {saved}")
+
+    # Auto-resume: if the caller requests it and no explicit resume target is set, detect existing
+    # artifacts automatically and enable resume.
+    if auto_resume and enable_world_model and not continue_from_world_model:
+        try:
+            from k_search.utils.paths import get_ksearch_artifacts_dir
+            from pathlib import Path as _Path
+            _task_name = str(getattr(task, "name", "") or "")
+            _wm_path = (
+                get_ksearch_artifacts_dir(base_dir=artifacts_dir, task_name=_task_name)
+                / "world_model" / "world_model.json"
+            )
+            if _wm_path.exists():
+                print(f"[auto-resume] Found existing world model at {_wm_path}, resuming.")
+                continue_from_world_model = "auto"
+        except Exception:
+            pass
 
     if enable_world_model:
         # World-model mode uses the WM generator (task-driven).
@@ -301,6 +351,15 @@ def main():
             "Use 'auto' to load <artifacts>/<task>/world_model/world_model.json if present."
         ),
     )
+    parser.add_argument(
+        "--auto-resume",
+        action="store_true",
+        help=(
+            "Automatically resume from existing artifacts in --artifacts-dir. "
+            "With --world-model: sets --continue-from-world-model=auto when world_model.json exists "
+            "and restores the previously saved best solution."
+        ),
+    )
     parser.add_argument("--feedback-workloads", nargs="+", default=None, help="Explicit workload UUIDs to use for optimization feedback rounds")
     # Nsight Compute
     parser.add_argument("--feedback-trace-policy", default="first", choices=["first", "random"], help="Policy for selecting feedback traces")
@@ -389,6 +448,7 @@ def main():
         num_eval_workload=args.num_eval_workload,
         continue_from_solution=args.continue_from_solution,
         continue_from_world_model=args.continue_from_world_model,
+        auto_resume=args.auto_resume,
         enable_world_model=args.world_model,
         wm_stagnation_window=args.wm_stagnation_window,
         wm_max_difficulty=args.wm_max_difficulty,

@@ -7,6 +7,7 @@ and only override prompt construction to inject the persistent world model JSON.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 
 from pathlib import Path
@@ -23,7 +24,7 @@ from k_search.kernel_generators.world_model_prompts import (
     get_improve_generated_code_prompt_from_text,
 )
 from k_search.kernel_generators.world_model_manager import WorldModelConfig, WorldModelManager, WorldModelSelectionPolicy
-from k_search.tasks.task_base import EvalResult
+from k_search.tasks.task_base import BuildSpec, EvalResult, Solution, SourceFile, SupportedLanguages
 from k_search.kernel_generators.world_model import (
     Prediction,
     dump_world_model_obj,
@@ -62,6 +63,89 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
             p.write_text(wm_s, encoding="utf-8")
         except Exception:
             pass
+
+    def _persist_progress(self, *, task: Any, next_cycle_start_round: int) -> None:
+        """Best-effort: persist cycle progress so resumed runs continue round counting from where we left off."""
+        try:
+            p = self._default_world_model_path(task=task)
+            if p is None:
+                return
+            progress_path = p.parent / "progress.json"
+            progress_path.parent.mkdir(parents=True, exist_ok=True)
+            progress_path.write_text(
+                json.dumps({"next_cycle_start_round": int(next_cycle_start_round)}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+    def _load_progress(self, *, task: Any) -> Optional[dict]:
+        """Load saved cycle progress from disk; returns None if not found."""
+        try:
+            p = self._default_world_model_path(task=task)
+            if p is None:
+                return None
+            progress_path = p.parent / "progress.json"
+            if not progress_path.exists():
+                return None
+            return json.loads(progress_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def _persist_best_checkpoint(self, *, task: Any, solution: Any, raw_code: str, score: float, round_num: int) -> None:
+        """Best-effort: persist the global best-so-far solution to disk for resume support."""
+        try:
+            p = self._default_world_model_path(task=task)
+            if p is None:
+                return
+            cp_path = p.parent / "best_checkpoint.json"
+            cp_path.parent.mkdir(parents=True, exist_ok=True)
+            checkpoint = {
+                "raw_code": str(raw_code or ""),
+                "round_num": int(round_num),
+                "score": float(score),
+                "solution": solution.to_dict() if solution is not None else None,
+            }
+            cp_path.write_text(json.dumps(checkpoint, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _load_best_checkpoint(self, *, task: Any) -> Optional[dict]:
+        """Load saved best-checkpoint from disk; returns None if not found or invalid."""
+        try:
+            p = self._default_world_model_path(task=task)
+            if p is None:
+                return None
+            cp_path = p.parent / "best_checkpoint.json"
+            if not cp_path.exists():
+                return None
+            return json.loads(cp_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _solution_from_checkpoint_dict(d: dict) -> Solution:
+        """Reconstruct a Solution dataclass from a to_dict() snapshot."""
+        spec = d["spec"]
+        lang_str = spec["language"]
+        try:
+            lang = SupportedLanguages(lang_str)
+        except Exception:
+            lang = lang_str  # type: ignore[assignment]
+        sources = [SourceFile(path=s["path"], content=s["content"]) for s in d.get("sources", [])]
+        return Solution(
+            name=d["name"],
+            definition=d["definition"],
+            author=d["author"],
+            spec=BuildSpec(
+                language=lang,
+                target_hardware=spec.get("target_hardware", []),
+                entry_point=spec["entry_point"],
+                dependencies=spec.get("dependencies", []),
+            ),
+            sources=sources,
+            description=d.get("description"),
+        )
 
     def _resume_world_model_from_snapshot(self, *, task: Any, ref: str) -> None:
         """
@@ -294,6 +378,32 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
             current_code = None
             current_raw_code = None
 
+        # Load checkpoint + progress from a previous run so the resumed session inherits the global best
+        # and continues round counting from where it left off.
+        _initial_best_solution: Optional[Any] = None
+        _initial_best_score: float = -1.0
+        _initial_best_raw: Optional[str] = None
+        _initial_cycle_start_round: int = 1
+        if wm_ref:
+            _cp = self._load_best_checkpoint(task=task)
+            if _cp is not None:
+                try:
+                    _initial_best_solution = self._solution_from_checkpoint_dict(_cp["solution"])
+                    _initial_best_score = float(_cp.get("score", -1.0))
+                    _initial_best_raw = str(_cp.get("raw_code", "") or "")
+                    _emit(
+                        f"[resume] Loaded best checkpoint: round={_cp.get('round_num')}, score={_initial_best_score:.3f}"
+                    )
+                except Exception:
+                    pass
+            _prog = self._load_progress(task=task)
+            if _prog is not None:
+                try:
+                    _initial_cycle_start_round = max(1, int(_prog.get("next_cycle_start_round", 1)))
+                    _emit(f"[resume] Continuing from round {_initial_cycle_start_round} (max={max_opt_rounds})")
+                except Exception:
+                    pass
+
         # Use the simpler explicit action-cycle loop (v2). This is much easier to reason about:
         # choose action -> attempt 1 (spec/base + action) -> attempts 2..N (debug_and_improve) -> attach+refine/too-hard.
         return self._generate_world_model_cycles_v2(
@@ -302,6 +412,10 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
             wm_stagnation_window=wm_stagnation_window,
             max_dai=max_dai,
             initial_raw_code=(current_raw_code if isinstance(current_raw_code, str) else None),
+            initial_best_solution=_initial_best_solution,
+            initial_best_score=_initial_best_score,
+            initial_best_raw=_initial_best_raw,
+            initial_cycle_start_round=_initial_cycle_start_round,
         )
         # (legacy loop removed; v2 runs all optimization rounds)
 
@@ -313,6 +427,10 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
         wm_stagnation_window: int = 5,
         max_dai: int,
         initial_raw_code: Optional[str] = None,
+        initial_best_solution: Optional[Any] = None,
+        initial_best_score: float = -1.0,
+        initial_best_raw: Optional[str] = None,
+        initial_cycle_start_round: int = 1,
     ) -> Any:
         """
         Simpler state machine:
@@ -402,17 +520,18 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
             except Exception:
                 return str(s or "")
 
-        best_solution: Optional[Any] = None
+        best_solution: Optional[Any] = initial_best_solution
         best_eval: Optional[EvalResult] = None
-        best_score: float = -1.0
+        best_score: float = float(initial_best_score) if initial_best_solution is not None else -1.0
 
-        current_raw_code: Any = str(initial_raw_code or "")
+        _init_raw = initial_raw_code or initial_best_raw or ""
+        current_raw_code: Any = str(_init_raw)
         last_solution: Optional[Any] = None
 
         # Walk action cycles. Each cycle keeps trying the SAME chosen action node until:
         # - we see no improvements for `stagnation_window` consecutive rounds, OR
         # - we hit max_opt_rounds.
-        cycle_start_round = 1
+        cycle_start_round = max(1, int(initial_cycle_start_round))
         while cycle_start_round <= max_opt_rounds:
             try:
                 stagnation_window = int(wm_stagnation_window)
@@ -783,6 +902,13 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                     best_score = float(round_score)
                     best_eval = round_eval
                     best_solution = solution
+                    self._persist_best_checkpoint(
+                        task=task,
+                        solution=best_solution,
+                        raw_code=str(current_raw_code or ""),
+                        score=best_score,
+                        round_num=round_num,
+                    )
 
                 if all_passed:
                     er = round_eval
@@ -903,6 +1029,7 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                     pass
 
             cycle_start_round += max(1, rounds_consumed)
+            self._persist_progress(task=task, next_cycle_start_round=cycle_start_round)
 
         # Fall back to the best observed solution, else the last attempted.
         if best_solution is not None:
