@@ -1,4 +1,4 @@
-export WANDB_ENTITY="han2024"
+WANDB_ENTITY="${WANDB_ENTITY:-han2024}"
 KSEARCH_ROOT="${KSEARCH_ROOT:-$PWD}"
 DATASET_ROOT="$HOME/dataset/flashinfer-trace"
 
@@ -13,8 +13,8 @@ TARGET_GPU="${TARGET_GPU:-H100}"
 BASELINE_SOLUTION="flashinfer_deepgemm_wrapper_2ba145"
 CONTINUE_FROM_SOLUTION="${CONTINUE_FROM_SOLUTION:-}"
 
-MAX_OPT_ROUNDS="${MAX_OPT_ROUNDS:-20}"
-WM_STAGNATION_WINDOW="${WM_STAGNATION_WINDOW:-7}"
+MAX_OPT_ROUNDS="${MAX_OPT_ROUNDS:-1000}"
+WM_STAGNATION_WINDOW="${WM_STAGNATION_WINDOW:-5}"
 
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-.ksearch-output}"
 
@@ -32,6 +32,7 @@ python -u "${KSEARCH_ROOT}/generate_kernels_and_eval.py" \
   --language "${LANGUAGE}" \
   --target-gpu "${TARGET_GPU}" \
   --world-model \
+  --auto-resume \
   --wm-stagnation-window "${WM_STAGNATION_WINDOW}" \
   --max-opt-rounds "${MAX_OPT_ROUNDS}" \
   --parallel-workloads \
@@ -41,6 +42,7 @@ python -u "${KSEARCH_ROOT}/generate_kernels_and_eval.py" \
   --baseline-solution "${BASELINE_SOLUTION}" \
   --wandb \
   --wandb-project "${WANDB_PROJECT}" \
+  --wandb-entity "${WANDB_ENTITY}" \
   --run-name "${RUN_NAME}" \
   --artifacts-dir "${ARTIFACTS_DIR}" \
   --feedback-workloads \

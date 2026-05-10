@@ -61,8 +61,8 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                 return
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(wm_s, encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[warning] failed to persist world model snapshot: {type(e).__name__}: {e}", flush=True)
 
     def _persist_progress(self, *, task: Any, next_cycle_start_round: int) -> None:
         """Best-effort: persist cycle progress so resumed runs continue round counting from where we left off."""
@@ -76,8 +76,8 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                 json.dumps({"next_cycle_start_round": int(next_cycle_start_round)}, ensure_ascii=False),
                 encoding="utf-8",
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[warning] failed to persist progress: {type(e).__name__}: {e}", flush=True)
 
     def _load_progress(self, *, task: Any) -> Optional[dict]:
         """Load saved cycle progress from disk; returns None if not found."""
@@ -107,8 +107,8 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
                 "solution": solution.to_dict() if solution is not None else None,
             }
             cp_path.write_text(json.dumps(checkpoint, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[warning] failed to persist best checkpoint: {type(e).__name__}: {e}", flush=True)
 
     def _load_best_checkpoint(self, *, task: Any) -> Optional[dict]:
         """Load saved best-checkpoint from disk; returns None if not found or invalid."""

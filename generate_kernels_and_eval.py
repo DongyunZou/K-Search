@@ -123,6 +123,7 @@ def generate_and_evaluate(
     # W&B options
     enable_wandb: bool = False,
     wandb_project: Optional[str] = None,
+    wandb_entity: Optional[str] = None,
     run_name: Optional[str] = None,
     # World model prompting
     enable_world_model: bool = False,
@@ -166,6 +167,7 @@ def generate_and_evaluate(
             task_cfg = {}
         wb_run = wandb.init(
             project=wandb_project or os.getenv("WANDB_PROJECT", "flashinfer-bench"),
+            entity=wandb_entity or os.getenv("WANDB_ENTITY") or None,
             name=run_name or os.getenv("RUN_NAME"),
             id=_wb_resume_id,
             resume="allow" if _wb_resume_id else None,
@@ -421,6 +423,7 @@ def main():
     # W&B options
     parser.add_argument("--wandb", action="store_true", help="Enable Weights & Biases logging")
     parser.add_argument("--wandb-project", default=os.getenv("WANDB_PROJECT"), help="W&B project")
+    parser.add_argument("--wandb-entity", default=os.getenv("WANDB_ENTITY"), help="W&B entity (team/user)")
     parser.add_argument("--run-name", default=os.getenv("RUN_NAME"), help="W&B run name")
 
     # GPUMode options
@@ -498,6 +501,7 @@ def main():
         artifacts_dir=args.artifacts_dir,
         enable_wandb=args.wandb,
         wandb_project=args.wandb_project,
+        wandb_entity=args.wandb_entity,
         run_name=args.run_name,
     )
 
