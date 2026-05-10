@@ -15,8 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from k_search.utils.gpu_lock import gpu_lock
-
 from .task_base import BuildSpec as TaskBuildSpec
 from .task_base import EvalResult
 from .task_base import Solution as TaskSolution
@@ -100,14 +98,11 @@ class FlashInferBenchTask:
         feedback_workloads: Optional[list[str]] = None,
         baseline_solution_name: Optional[str] = None,
         eval_config: FlashInferBenchEvalConfig | None = None,
-        gpu_lock_path: Optional[str] = None,
     ):
         # We intentionally keep this typed as Any so the generator can be type-agnostic later.
         self._task_path: str | None = None  # set by factories when constructed from a dataset path
         # k-search artifacts dir used to resolve `--continue-from-solution` by name/path.
         self._ksearch_artifacts_dir: str | None = (str(artifacts_dir) if artifacts_dir is not None else None)
-        # Optional cross-process GPU mutex; None disables locking.
-        self._gpu_lock_path: Optional[str] = (str(gpu_lock_path) if gpu_lock_path else None)
         self._traceset = traceset
         self._definition = definition
         self._feedback_trace_selector = (
@@ -194,7 +189,6 @@ class FlashInferBenchTask:
         feedback_workloads: Optional[list[str]] = None,
         baseline_solution_name: Optional[str] = None,
         eval_config: FlashInferBenchEvalConfig | None = None,
-        gpu_lock_path: Optional[str] = None,
     ) -> "FlashInferBenchTask":
         """
         Construct a task from a dataset path + definition name (keeps flashinfer-bench imports in this module).
@@ -212,7 +206,6 @@ class FlashInferBenchTask:
             feedback_workloads=feedback_workloads,
             baseline_solution_name=baseline_solution_name,
             eval_config=eval_config,
-            gpu_lock_path=gpu_lock_path,
         )
         obj._task_path = str(dataset_path)
         return obj
@@ -235,7 +228,6 @@ class FlashInferBenchTask:
         num_feedback_workloads: int,
         artifacts_dir: str | None = None,
         enable_ncu_profile: bool = False,
-        gpu_lock_path: Optional[str] = None,
     ) -> "FlashInferBenchTask":
         """
         Convenience factory for scripts/CLI so task-specific init logic lives in the task module.
@@ -258,7 +250,6 @@ class FlashInferBenchTask:
             baseline_solution_name=baseline_solution,
             eval_config=eval_cfg,
             artifacts_dir=artifacts_dir,
-            gpu_lock_path=gpu_lock_path,
         )
 
     def get_config_for_logging(self) -> Dict[str, Any]:
@@ -307,13 +298,12 @@ class FlashInferBenchTask:
         try:
             fb_solution = self._to_backend_solution(solution)
             workload = getattr(self._selected_workloads[0], "workload")
-            with gpu_lock(self._gpu_lock_path, label=f"ncu_profile[{self.name}]"):
-                output = run_ncu(
-                    solution=fb_solution,
-                    workload=workload,
-                    trace_set_path=self._task_path,
-                    ncu_path="/usr/local/cuda/bin/ncu",
-                )
+            output = run_ncu(
+                solution=fb_solution,
+                workload=workload,
+                trace_set_path=self._task_path,
+                ncu_path="/usr/local/cuda/bin/ncu",
+            )
             result = output if isinstance(output, dict) else {"raw": output}
             return result
         except Exception as e:
@@ -1288,8 +1278,7 @@ Reference Implementation:
             use_isolated_runner=bool(cfg.use_isolated_runner),
         )
         benchmark = Benchmark(temp_traceset, bench_cfg)
-        with gpu_lock(self._gpu_lock_path, label=f"run_benchmark[{def_name}]"):
-            result_traceset = benchmark.run_all(dump_traces=bool(dump_traces))
+        result_traceset = benchmark.run_all(dump_traces=bool(dump_traces))
         traces = self.extract_traces(result_traceset)
 
         info = self.summarize_round_and_select_feedback_trace(
@@ -1420,8 +1409,7 @@ Reference Implementation:
             use_isolated_runner=bool(cfg.use_isolated_runner),
         )
         benchmark = Benchmark(temp_traceset, bench_cfg)
-        with gpu_lock(self._gpu_lock_path, label=f"run_final_evaluation[{def_name}]"):
-            result_traceset = benchmark.run_all(dump_traces=bool(dump_traces))
+        result_traceset = benchmark.run_all(dump_traces=bool(dump_traces))
         traces = self.extract_traces(result_traceset)
 
         # Group traces: solution -> workload_uuid -> list[trace]

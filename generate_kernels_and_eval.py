@@ -439,19 +439,6 @@ def main():
     parser.add_argument("--gpumode-keep-tmp", action="store_true", help="Keep GPUMode temp working dir for debugging")
     parser.add_argument("--gpumode-task-dir", default=None, help="Override GPUMode task dir (defaults to vendored trimul task)")
 
-    # Cross-process GPU mutex (lets multiple search processes share one GPU; LLM-wait
-    # time is freed for other processes' evals). Defaults on; pass --no-gpu-lock to disable.
-    parser.add_argument(
-        "--gpu-lock-path",
-        default="/tmp/ksearch_gpu.lock",
-        help="Path to a file used as a cross-process flock; serializes evaluator calls across K-Search processes sharing a GPU.",
-    )
-    parser.add_argument(
-        "--no-gpu-lock",
-        action="store_true",
-        help="Disable the GPU mutex (run without cross-process serialization).",
-    )
-
     args = parser.parse_args()
 
     if args.use_claude_cli:
@@ -470,7 +457,6 @@ def main():
 
     task_source = str(args.task_source or "flashinfer")
     task_path = str(args.task_path or (args.local or ""))
-    gpu_lock_path = None if args.no_gpu_lock else (args.gpu_lock_path or None)
     if task_source == "flashinfer":
         from k_search.tasks.flashinfer_bench_task import FlashInferBenchTask
 
@@ -495,7 +481,6 @@ def main():
             num_feedback_workloads=5,
             artifacts_dir=args.artifacts_dir,
             enable_ncu_profile=args.enable_ncu_profile,
-            gpu_lock_path=gpu_lock_path,
         )
     elif task_source == "gpumode":
         from k_search.tasks.gpu_mode_task import GpuModeTriMulTask
@@ -505,7 +490,6 @@ def main():
             keep_tmp=bool(args.gpumode_keep_tmp),
             task_dir=(str(args.gpumode_task_dir) if args.gpumode_task_dir else None),
             artifacts_dir=args.artifacts_dir,
-            gpu_lock_path=gpu_lock_path,
         )
     else:
         raise ValueError(f"Unsupported task_source: {task_source}")
