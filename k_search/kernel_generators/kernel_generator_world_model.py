@@ -184,27 +184,12 @@ class WorldModelKernelGeneratorWithBaseline(KernelGenerator):
         self._world_model_max_chars = int(world_model_max_chars)
         self._artifacts_dir = artifacts_dir
 
-        def _llm_call(prompt: str) -> str:
-            if self.model_name.startswith("gpt-5") or self.model_name.startswith("o3"):
-                response = self.client.responses.create(
-                    model=self.model_name,
-                    input=prompt,
-                    reasoning={"effort": self.reasoning_effort},
-                )
-                return (response.output_text or "").strip()
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=16384
-            )
-            return (response.choices[0].message.content or "").strip()
-
         selection_policy = WorldModelSelectionPolicy()
         if wm_max_difficulty is not None:
             selection_policy.max_difficulty_1_to_5 = int(wm_max_difficulty)
 
         self._wm = WorldModelManager(
-            llm_call=_llm_call,
+            llm_call=self._call_llm,
             target_gpu=self.target_gpu,
             language=self.language,
             config=WorldModelConfig(

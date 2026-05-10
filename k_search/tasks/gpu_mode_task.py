@@ -26,6 +26,7 @@ from k_search.tasks.gpu_mode.code_utils import normalize_cuda_sources
 from k_search.tasks.gpu_mode.evaluator import evaluate_trimul_submission
 from k_search.tasks.gpu_mode.trimul.spec import TRIMUL_SPEC_TEXT_CUDA, TRIMUL_SPEC_TEXT_TRITON
 from k_search.tasks.gpu_mode import DEFAULT_TRIMUL_TASK_DIR
+from k_search.utils.gpu_lock import gpu_lock
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,7 @@ class GpuModeTriMulTask:
         task_dir: str | Path | None = None,
         artifacts_dir: str | None = None,
         name: str = "gpumode_trimul",
+        gpu_lock_path: Optional[str] = None,
     ) -> None:
         self._name = str(name or "gpumode_trimul")
         self._cfg = GpuModeTriMulTaskConfig(
@@ -56,6 +58,7 @@ class GpuModeTriMulTask:
             task_dir=(Path(task_dir).expanduser().resolve() if task_dir is not None else DEFAULT_TRIMUL_TASK_DIR),
         )
         self._ksearch_artifacts_dir: str | None = (str(artifacts_dir) if artifacts_dir is not None else None)
+        self._gpu_lock_path: Optional[str] = (str(gpu_lock_path) if gpu_lock_path else None)
         self._solutions: dict[str, Solution] = {}
         # Last-round cache for prompt feedback (best-effort; generator reads via getattr).
         self._last_round_trace_logs_for_prompt: str = ""
@@ -270,14 +273,15 @@ class GpuModeTriMulTask:
             submission_code = (entry_src.content if entry_src else "") or ""
 
         try:
-            summary = evaluate_trimul_submission(
-                submission_code=submission_code,
-                mode=self._cfg.mode,
-                language=lang or "python",
-                verbose=True,
-                keep_tmp=bool(self._cfg.keep_tmp),
-                task_dir=self._cfg.task_dir,
-            )
+            with gpu_lock(self._gpu_lock_path, label=f"run_benchmark[{self._name}]"):
+                summary = evaluate_trimul_submission(
+                    submission_code=submission_code,
+                    mode=self._cfg.mode,
+                    language=lang or "python",
+                    verbose=True,
+                    keep_tmp=bool(self._cfg.keep_tmp),
+                    task_dir=self._cfg.task_dir,
+                )
         except Exception as e:
             # Fail fast but don't crash generator loops: malformed outputs should be treated as failed evals.
             # IMPORTANT: populate last-round caches so the generator can surface the failure in the next prompt/log.

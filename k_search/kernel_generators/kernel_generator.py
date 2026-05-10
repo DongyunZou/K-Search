@@ -33,33 +33,56 @@ class KernelGenerator:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         reasoning_effort: str = "medium",  # only used for openai reasoning models
+        use_claude_cli: bool = False,
     ):
         """
         Args:
             model_name: Name of the model to use (e.g., "gpt-5")
             language: Programming language for code generation (default: "triton")
             target_gpu: Target GPU architecture (e.g., "H100", "B200", "RTX4090", default: "H100")
-            api_key: API key (if None, uses LLM_API_KEY environment variable)
-            base_url: Base URL for the API (need to provide for non-openai api models)
+            api_key: API key (if None, uses LLM_API_KEY environment variable). Ignored when use_claude_cli=True.
+            base_url: Base URL for the API (need to provide for non-openai api models). Ignored when use_claude_cli=True.
             reasoning_effort: Reasoning effort for OpenAI reasoning models ("low", "medium", "high", default: "medium")
+            use_claude_cli: When True, skip the OpenAI SDK and shell out to `claude -p` for every LLM call.
         """
         self.model_name = model_name
         self.language = language
         self.target_gpu = target_gpu
         self.reasoning_effort = reasoning_effort
+        self.use_claude_cli = bool(use_claude_cli)
 
-        if api_key is None:
-            api_key = os.getenv("LLM_API_KEY")
+        if self.use_claude_cli:
+            self.client = None  # not used; routed through claude CLI subprocess
+        else:
             if api_key is None:
-                raise ValueError(
-                    "API key must be provided or set in LLM_API_KEY environment variable"
-                )
+                api_key = os.getenv("LLM_API_KEY")
+                if api_key is None:
+                    raise ValueError(
+                        "API key must be provided or set in LLM_API_KEY environment variable"
+                    )
+            client_kwargs = {"api_key": api_key}
+            if base_url is not None:
+                client_kwargs["base_url"] = base_url
+            self.client = openai.OpenAI(**client_kwargs)
 
-        client_kwargs = {"api_key": api_key}
-        if base_url is not None:
-            client_kwargs["base_url"] = base_url
-
-        self.client = openai.OpenAI(**client_kwargs)
+    def _call_llm(self, prompt: str) -> str:
+        """Single LLM call returning a plain text response. Routes via claude CLI or OpenAI SDK."""
+        if self.use_claude_cli:
+            from k_search.utils.claude_cli import call_claude_cli
+            return call_claude_cli(prompt, model=self.model_name)
+        if self.model_name.startswith("gpt-5") or self.model_name.startswith("o3"):
+            response = self.client.responses.create(
+                model=self.model_name,
+                input=prompt,
+                reasoning={"effort": self.reasoning_effort},
+            )
+            return (response.output_text or "").strip()
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=16384,
+        )
+        return (response.choices[0].message.content or "").strip()
 
     def _get_supported_language(self) -> SupportedLanguages:
         language_map = {
@@ -152,19 +175,7 @@ class KernelGenerator:
         for attempt in range(1, (max_parse_retries if is_cuda else 1) + 1):
             try:
                 effective_prompt = prompt
-
-                if self.model_name.startswith("gpt-5") or self.model_name.startswith("o3"):
-                    response = self.client.responses.create(
-                        model=self.model_name, input=effective_prompt, reasoning={"effort": self.reasoning_effort}
-                    )
-                    generated_code = response.output_text.strip()
-                else:  # We use the completions api for OpenAI SDK compatible models
-                    response = self.client.chat.completions.create(
-                        model=self.model_name,
-                        messages=[{"role": "user", "content": effective_prompt}],
-                        max_tokens=16384
-                    )
-                    generated_code = response.choices[0].message.content.strip()
+                generated_code = self._call_llm(effective_prompt)
 
                 cleaned_code = self._clean_generated_code(generated_code)
 

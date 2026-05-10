@@ -17,6 +17,7 @@ MAX_OPT_ROUNDS="${MAX_OPT_ROUNDS:-1000}"
 WM_STAGNATION_WINDOW="${WM_STAGNATION_WINDOW:-5}"
 
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-.ksearch-output}"
+GPU_LOCK_PATH="${GPU_LOCK_PATH:-/tmp/ksearch_gpu.lock}"
 
 WANDB_PROJECT="${WANDB_PROJECT:-kernel_agent}"
 RUN_NAME="${RUN_NAME:-${MODEL_NAME}-${LANGUAGE}-wm-${DEFINITION}-seed-opt${MAX_OPT_ROUNDS}}"
@@ -45,6 +46,7 @@ python -u "${KSEARCH_ROOT}/generate_kernels_and_eval.py" \
   --wandb-entity "${WANDB_ENTITY}" \
   --run-name "${RUN_NAME}" \
   --artifacts-dir "${ARTIFACTS_DIR}" \
+  --gpu-lock-path "${GPU_LOCK_PATH}" \
   --feedback-workloads \
     0c23b10c7b7645719517828c12eaa1d2 \
     9d4a5f21268e484ea05a2f2af91d9fa7 \

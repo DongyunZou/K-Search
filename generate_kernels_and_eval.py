@@ -130,6 +130,7 @@ def generate_and_evaluate(
     wm_stagnation_window: int = 5,
     wm_max_difficulty: Optional[int] = None,
     artifacts_dir: Optional[str] = None,
+    use_claude_cli: bool = False,
 ) -> None:
     """
     Generate exactly one solution for the task, then run final evaluation.
@@ -255,6 +256,7 @@ def generate_and_evaluate(
             base_url=base_url,
             artifacts_dir=artifacts_dir,
             wm_max_difficulty=wm_max_difficulty,
+            use_claude_cli=use_claude_cli,
         )
     else:
         # Non-world-model mode: baseline-style generator (task-driven).
@@ -266,6 +268,7 @@ def generate_and_evaluate(
             target_gpu=target_gpu,
             api_key=api_key,
             base_url=base_url,
+            use_claude_cli=use_claude_cli,
         )
 
     # Generate exactly one solution.
@@ -341,6 +344,11 @@ def main():
     parser.add_argument("--model-name", default="claude-opus-4-6", help="LLM model name (default: claude-opus-4-6)")
     parser.add_argument("--base-url", default=None, help="OpenAI-compatible base URL; if omitted, uses LLM_BASE_URL env var (also read from .env), then falls back to Anthropic's default endpoint")
     parser.add_argument("--api-key", default=None, help="API key; if omitted, uses LLM_API_KEY env var (also read from .env)")
+    parser.add_argument(
+        "--use-claude-cli",
+        action="store_true",
+        help="Route every LLM call through `claude -p` subprocess (uses your Claude Code subscription). Skips --api-key / --base-url.",
+    )
     parser.add_argument("--language", default="triton", choices=["triton", "python", "cuda"], help="Target language for generated kernel")
     parser.add_argument("--target-gpu", default="H100", help="Target GPU architecture hint for prompts")
     parser.add_argument("--max-opt-rounds", type=int, default=5, help="Max optimization rounds for each solution generation")
@@ -431,20 +439,38 @@ def main():
     parser.add_argument("--gpumode-keep-tmp", action="store_true", help="Keep GPUMode temp working dir for debugging")
     parser.add_argument("--gpumode-task-dir", default=None, help="Override GPUMode task dir (defaults to vendored trimul task)")
 
+    # Cross-process GPU mutex (lets multiple search processes share one GPU; LLM-wait
+    # time is freed for other processes' evals). Defaults on; pass --no-gpu-lock to disable.
+    parser.add_argument(
+        "--gpu-lock-path",
+        default="/tmp/ksearch_gpu.lock",
+        help="Path to a file used as a cross-process flock; serializes evaluator calls across K-Search processes sharing a GPU.",
+    )
+    parser.add_argument(
+        "--no-gpu-lock",
+        action="store_true",
+        help="Disable the GPU mutex (run without cross-process serialization).",
+    )
+
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("LLM_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("API key is required (pass --api-key, set LLM_API_KEY/ANTHROPIC_API_KEY, or put it in .env)")
-    base_url = (
-        args.base_url
-        or os.getenv("LLM_BASE_URL")
-        or os.getenv("ANTHROPIC_BASE_URL")
-        or "https://api.anthropic.com/v1/"
-    )
+    if args.use_claude_cli:
+        api_key = None
+        base_url = None
+    else:
+        api_key = args.api_key or os.getenv("LLM_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("API key is required (pass --api-key, set LLM_API_KEY/ANTHROPIC_API_KEY, or put it in .env)")
+        base_url = (
+            args.base_url
+            or os.getenv("LLM_BASE_URL")
+            or os.getenv("ANTHROPIC_BASE_URL")
+            or "https://api.anthropic.com/v1/"
+        )
 
     task_source = str(args.task_source or "flashinfer")
     task_path = str(args.task_path or (args.local or ""))
+    gpu_lock_path = None if args.no_gpu_lock else (args.gpu_lock_path or None)
     if task_source == "flashinfer":
         from k_search.tasks.flashinfer_bench_task import FlashInferBenchTask
 
@@ -469,6 +495,7 @@ def main():
             num_feedback_workloads=5,
             artifacts_dir=args.artifacts_dir,
             enable_ncu_profile=args.enable_ncu_profile,
+            gpu_lock_path=gpu_lock_path,
         )
     elif task_source == "gpumode":
         from k_search.tasks.gpu_mode_task import GpuModeTriMulTask
@@ -478,6 +505,7 @@ def main():
             keep_tmp=bool(args.gpumode_keep_tmp),
             task_dir=(str(args.gpumode_task_dir) if args.gpumode_task_dir else None),
             artifacts_dir=args.artifacts_dir,
+            gpu_lock_path=gpu_lock_path,
         )
     else:
         raise ValueError(f"Unsupported task_source: {task_source}")
@@ -503,6 +531,7 @@ def main():
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         run_name=args.run_name,
+        use_claude_cli=args.use_claude_cli,
     )
 
 
