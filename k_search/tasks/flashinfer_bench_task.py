@@ -361,7 +361,8 @@ class FlashInferBenchTask:
         tgt_raw = list(tgt0) if isinstance(tgt0, list) else []
         tgt = [str(x) for x in tgt_raw if x is not None and str(x).strip()]
         ep = str(getattr(spec0, "entry_point", "") or "") if spec0 is not None else ""
-        binding = str(getattr(spec0, binding))
+        binding = str(getattr(spec0, "binding", "torch") or "torch") if spec0 is not None else "torch"
+        dps = bool(getattr(spec0, "destination_passing_style", True)) if spec0 is not None else True
         sources0 = getattr(sol, "sources", None)
         sources: list[TaskSourceFile] = []
         if isinstance(sources0, list):
@@ -380,6 +381,7 @@ class FlashInferBenchTask:
                 entry_point=ep,
                 dependencies=deps,
                 binding=binding,
+                destination_passing_style=dps,
             ),
             sources=sources or [TaskSourceFile(path="main.py", content="")],
             description=(getattr(sol, "description", None) if isinstance(getattr(sol, "description", None), str) else None),
@@ -414,6 +416,7 @@ class FlashInferBenchTask:
             entry_point=str(sol.spec.entry_point or "main.py::run"),
             dependencies=[str(x) for x in (sol.spec.dependencies or []) if x is not None and str(x).strip()],
             binding=sol.spec.binding,
+            destination_passing_style=bool(getattr(sol.spec, "destination_passing_style", True)),
         )
         return FBSolution(
             name=str(sol.name or ""),

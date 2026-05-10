@@ -183,6 +183,10 @@ class BuildSpec:
     entry_point: str
     dependencies: list[str] = field(default_factory=list)
     binding: str = "torch"
+    # Whether the entry point uses destination-passing style (output buffers as last positional
+    # args) vs. value-returning style. Mirrors flashinfer-bench's BuildSpec field; default matches
+    # flashinfer-bench's default (True). Some baselines persist this as False in their JSON.
+    destination_passing_style: bool = True
 
 
 @dataclass
@@ -243,6 +247,7 @@ class Solution:
                     "target_hardware": list(self.spec.target_hardware or []),
                     "entry_point": self.spec.entry_point,
                     "dependencies": list(self.spec.dependencies or []),
+                    "destination_passing_style": bool(getattr(self.spec, "destination_passing_style", True)),
                 },
                 "sources": [{"path": sf.path, "content": sf.content} for sf in (self.sources or [])],
             }
@@ -386,7 +391,8 @@ def solution_from_json_dict(d: dict[str, Any]) -> Solution:
             target_hardware=list(spec.get("target_hardware", []) or []),
             entry_point=str(spec.get("entry_point", "") or ""),
             dependencies=list(spec.get("dependencies", []) or []),
-            binding=str(d.get("binding", "torch"))
+            binding=str(d.get("binding", "torch")),
+            destination_passing_style=bool(spec.get("destination_passing_style", True)),
         ),
         sources=sources,
     )

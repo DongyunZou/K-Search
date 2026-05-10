@@ -6,6 +6,35 @@ from pathlib import Path
 from typing import Any, List, Optional
 import json
 
+
+def _load_dotenv(path: str | os.PathLike[str] = ".env") -> None:
+    """Load KEY=VALUE pairs from a .env file into os.environ (no overwrite).
+
+    Supports `export KEY=VALUE`, comments, and single/double-quoted values.
+    Existing env vars take precedence so CLI/shell exports still win.
+    """
+    p = Path(path)
+    if not p.is_file():
+        return
+    try:
+        for raw in p.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export "):].lstrip()
+            if "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip()
+            if (len(val) >= 2) and ((val[0] == val[-1] == '"') or (val[0] == val[-1] == "'")):
+                val = val[1:-1]
+            if key and key not in os.environ:
+                os.environ[key] = val
+    except Exception as e:
+        print(f"[dotenv] Failed to parse {p}: {e}")
+
 def _persist_ksearch_solution(
     solution: Any, *, definition_name: str, artifacts_dir: Optional[str]
 ) -> Optional[Path]:
@@ -289,6 +318,10 @@ def generate_and_evaluate(
 
 
 def main():
+    # Load .env (if present) before reading env vars so LLM_API_KEY / LLM_BASE_URL pick up values.
+    # Real shell exports still win (we don't overwrite existing env).
+    _load_dotenv()
+
     parser = argparse.ArgumentParser(description="Generate kernels with GPT/Gemini (OpenAI-compatible) and evaluate via task backends.")
     parser.add_argument("--local", required=False, default=None, help="Path to flashinfer-trace dataset root (flashinfer only)")
     parser.add_argument(
@@ -303,9 +336,9 @@ def main():
         help="Task source path/identifier. For --task-source=flashinfer, this is the dataset root path (defaults to --local).",
     )
     parser.add_argument("--definition", default=None, help="Single definition name to target (required)")
-    parser.add_argument("--model-name", required=True, help="LLM model name (e.g., gpt-4.1, gpt-5, gemini-2.5-pro via compatible endpoint)")
-    parser.add_argument("--base-url", default=None, help="OpenAI-compatible base URL for non-OpenAI providers (e.g. Gemini proxy)")
-    parser.add_argument("--api-key", default=None, help="API key; if omitted, uses LLM_API_KEY env var")
+    parser.add_argument("--model-name", default="claude-opus-4-6", help="LLM model name (default: claude-opus-4-6)")
+    parser.add_argument("--base-url", default=None, help="OpenAI-compatible base URL; if omitted, uses LLM_BASE_URL env var (also read from .env), then falls back to Anthropic's default endpoint")
+    parser.add_argument("--api-key", default=None, help="API key; if omitted, uses LLM_API_KEY env var (also read from .env)")
     parser.add_argument("--language", default="triton", choices=["triton", "python", "cuda"], help="Target language for generated kernel")
     parser.add_argument("--target-gpu", default="H100", help="Target GPU architecture hint for prompts")
     parser.add_argument("--max-opt-rounds", type=int, default=5, help="Max optimization rounds for each solution generation")
@@ -397,9 +430,15 @@ def main():
 
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("LLM_API_KEY")
+    api_key = args.api_key or os.getenv("LLM_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise ValueError("API key is required (pass --api-key or set LLM_API_KEY)")
+        raise ValueError("API key is required (pass --api-key, set LLM_API_KEY/ANTHROPIC_API_KEY, or put it in .env)")
+    base_url = (
+        args.base_url
+        or os.getenv("LLM_BASE_URL")
+        or os.getenv("ANTHROPIC_BASE_URL")
+        or "https://api.anthropic.com/v1/"
+    )
 
     task_source = str(args.task_source or "flashinfer")
     task_path = str(args.task_path or (args.local or ""))
@@ -442,7 +481,7 @@ def main():
     generate_and_evaluate(
         task=task,
         model_name=args.model_name,
-        base_url=args.base_url,
+        base_url=base_url,
         api_key=api_key,
         language=args.language,
         target_gpu=args.target_gpu,

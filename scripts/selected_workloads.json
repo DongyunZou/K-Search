@@ -1,0 +1,240 @@
+{
+  "dsa_sparse_attention": {
+    "definition": "dsa_sparse_attention_h16_ckv512_kpe64_topk2048_ps64",
+    "baseline_solution": "flashinfer_wrapper_5af199",
+    "workload_count_total": 23,
+    "selected": [
+      {
+        "uuid": "0c23b10c7b7645719517828c12eaa1d2",
+        "axes": {
+          "num_tokens": 1,
+          "num_pages": 8462
+        }
+      },
+      {
+        "uuid": "9d4a5f21268e484ea05a2f2af91d9fa7",
+        "axes": {
+          "num_tokens": 2,
+          "num_pages": 8462
+        }
+      },
+      {
+        "uuid": "ddfa9e340b264f76abe7418692faa876",
+        "axes": {
+          "num_tokens": 6,
+          "num_pages": 8462
+        }
+      },
+      {
+        "uuid": "3838996164a94d728710f913477feba8",
+        "axes": {
+          "num_tokens": 7,
+          "num_pages": 8462
+        }
+      },
+      {
+        "uuid": "385742b2717e4f02b918c7349dde23d8",
+        "axes": {
+          "num_tokens": 8,
+          "num_pages": 8462
+        }
+      }
+    ]
+  },
+  "dsa_topk_indexer": {
+    "definition": "dsa_topk_indexer_fp8_h64_d128_topk2048_ps64",
+    "baseline_solution": "flashinfer_deepgemm_wrapper_2ba145",
+    "workload_count_total": 128,
+    "selected": [
+      {
+        "uuid": "30cecff1-7ea4-474b-90fc-7f4a87206d8e",
+        "axes": {
+          "batch_size": 1,
+          "max_num_pages": 1,
+          "num_pages": 11923
+        }
+      },
+      {
+        "uuid": "4279d75e-b93c-4198-9016-4d1d21e17bf2",
+        "axes": {
+          "batch_size": 4,
+          "max_num_pages": 17,
+          "num_pages": 11923
+        }
+      },
+      {
+        "uuid": "a4cdaee6-2c3e-46fa-a60a-fef4ccf4c30b",
+        "axes": {
+          "batch_size": 8,
+          "max_num_pages": 30,
+          "num_pages": 11923
+        }
+      },
+      {
+        "uuid": "1571c14a-181c-4f15-97a5-178e4b316ca5",
+        "axes": {
+          "batch_size": 29,
+          "max_num_pages": 19,
+          "num_pages": 11923
+        }
+      },
+      {
+        "uuid": "de54c4e6-7c89-43c7-aefb-db20265f4cdf",
+        "axes": {
+          "batch_size": 30,
+          "max_num_pages": 35,
+          "num_pages": 11923
+        }
+      },
+      {
+        "uuid": "5db1b172-eda8-4714-9981-a069dc33d7e9",
+        "axes": {
+          "batch_size": 30,
+          "max_num_pages": 91,
+          "num_pages": 11923
+        }
+      }
+    ]
+  },
+  "gdn_decode": {
+    "definition": "gdn_decode_qk4_v8_d128_k_last",
+    "baseline_solution": "flashinfer_wrapper_9b7f1e",
+    "workload_count_total": 54,
+    "selected": [
+      {
+        "uuid": "901e5104-dccb-4c3f-ae13-ef4d31a4d456",
+        "axes": {
+          "batch_size": 1
+        }
+      },
+      {
+        "uuid": "ec9d2340-6d13-40e4-a6fe-4483a1cacd0d",
+        "axes": {
+          "batch_size": 4
+        }
+      },
+      {
+        "uuid": "2640f1e3-4b02-4041-bdc1-59a28e0b9954",
+        "axes": {
+          "batch_size": 8
+        }
+      },
+      {
+        "uuid": "a8c8beff-e414-4580-b2f7-e5b8f13bc269",
+        "axes": {
+          "batch_size": 32
+        }
+      },
+      {
+        "uuid": "53385c7f-393d-41db-aec8-5b9eb5bf35d1",
+        "axes": {
+          "batch_size": 48
+        }
+      },
+      {
+        "uuid": "eaf0a285-447c-4432-8e68-d287acc3cb08",
+        "axes": {
+          "batch_size": 64
+        }
+      }
+    ]
+  },
+  "gdn_prefill": {
+    "definition": "gdn_prefill_qk4_v8_d128_k_last",
+    "baseline_solution": "flashinfer_wrapper_123ca6",
+    "workload_count_total": 100,
+    "selected": [
+      {
+        "uuid": "77daf91d-0660-4c4b-8c32-336a69281cd9",
+        "axes": {
+          "total_seq_len": 6,
+          "num_seqs": 1,
+          "len_cu_seqlens": 2
+        }
+      },
+      {
+        "uuid": "1efaf2a9-05db-4737-8f41-6880ba1bb487",
+        "axes": {
+          "total_seq_len": 42,
+          "num_seqs": 2,
+          "len_cu_seqlens": 3
+        }
+      },
+      {
+        "uuid": "fd072ba6-2190-4ce6-b96c-5212d4caf6a0",
+        "axes": {
+          "total_seq_len": 114,
+          "num_seqs": 2,
+          "len_cu_seqlens": 3
+        }
+      },
+      {
+        "uuid": "4b94d568-35ce-45a5-91eb-f8dc4b7077a7",
+        "axes": {
+          "total_seq_len": 574,
+          "num_seqs": 2,
+          "len_cu_seqlens": 3
+        }
+      },
+      {
+        "uuid": "109addb1-15e0-4ff2-9b39-df3e79746af0",
+        "axes": {
+          "total_seq_len": 3271,
+          "num_seqs": 2,
+          "len_cu_seqlens": 3
+        }
+      },
+      {
+        "uuid": "9a5d694b-7d4c-4ee6-8315-a13053ab6f92",
+        "axes": {
+          "total_seq_len": 8192,
+          "num_seqs": 57,
+          "len_cu_seqlens": 58
+        }
+      }
+    ]
+  },
+  "moe_fp8": {
+    "definition": "moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048",
+    "baseline_solution": "flashinfer_wrapper_9sdjf3",
+    "workload_count_total": 19,
+    "selected": [
+      {
+        "uuid": "e05c6c03-5603-4a1c-b34c-dcce0ecaeea4",
+        "axes": {
+          "seq_len": 1
+        }
+      },
+      {
+        "uuid": "a7c2bcfd-a2f4-479e-8d32-200115df89cf",
+        "axes": {
+          "seq_len": 16
+        }
+      },
+      {
+        "uuid": "fc378037-e8fa-4305-b00f-4af47933fd53",
+        "axes": {
+          "seq_len": 53
+        }
+      },
+      {
+        "uuid": "74d7ff04-0365-4cf8-a824-ce61b7131dea",
+        "axes": {
+          "seq_len": 57
+        }
+      },
+      {
+        "uuid": "5eadab1e-a0e3-4966-b0fd-1115cd77497c",
+        "axes": {
+          "seq_len": 62
+        }
+      },
+      {
+        "uuid": "5e8dc11c-f2a9-42d5-8dce-9419cbf34d5d",
+        "axes": {
+          "seq_len": 14107
+        }
+      }
+    ]
+  }
+}
