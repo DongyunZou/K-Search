@@ -31,7 +31,15 @@ git clone --recursive https://github.com/deepseek-ai/DeepGEMM.git /tmp/DeepGEMM
 uv pip install -e /tmp/DeepGEMM --no-build-isolation
 ```
 
-> `uv sync` removes packages not in the lockfile, so re-run the `uv pip install` above after every `uv sync`.
+DeepGEMM JIT-compiles paged-MQA-logits kernels at runtime and looks for CUTLASS headers under `deep_gemm/include/{cutlass,cute}`. Editable install skips the build step that copies them, so symlink to the CUTLASS shipped with `flashinfer`:
+
+```bash
+FI_CUTLASS=$(uv run python -c "import flashinfer, pathlib; print(pathlib.Path(flashinfer.__file__).parent/'data'/'cutlass'/'include')")
+ln -sfn "$FI_CUTLASS/cutlass" /tmp/DeepGEMM/deep_gemm/include/cutlass
+ln -sfn "$FI_CUTLASS/cute"    /tmp/DeepGEMM/deep_gemm/include/cute
+```
+
+> `uv sync` removes packages not in the lockfile, so re-run the `uv pip install` above after every `uv sync`. The symlinks survive `uv sync` (they live inside `/tmp/DeepGEMM`) but break if `flashinfer` is reinstalled into a different venv path.
 
 ### 4. Verify
 

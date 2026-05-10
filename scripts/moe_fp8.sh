@@ -5,6 +5,7 @@ DATASET_ROOT="$HOME/dataset/flashinfer-trace"
 MODEL_NAME="${MODEL_NAME:-claude-opus-4-6}"
 API_KEY="${API_KEY:-}"
 BASE_URL="${BASE_URL:-}"
+USE_CLAUDE_CLI="${USE_CLAUDE_CLI:-}"
 
 DEFINITION="moe_fp8_block_scale_ds_routing_topk8_ng8_kg4_e32_h7168_i2048"
 LANGUAGE="${LANGUAGE:-cuda}"
@@ -13,7 +14,7 @@ TARGET_GPU="${TARGET_GPU:-H100}"
 BASELINE_SOLUTION="flashinfer_wrapper_9sdjf3"
 CONTINUE_FROM_SOLUTION="${CONTINUE_FROM_SOLUTION:-}"
 
-MAX_OPT_ROUNDS="${MAX_OPT_ROUNDS:-1000}"
+MAX_OPT_ROUNDS="${MAX_OPT_ROUNDS:-120}"
 WM_STAGNATION_WINDOW="${WM_STAGNATION_WINDOW:-5}"
 
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-.ksearch-output}"
@@ -30,6 +31,7 @@ python -u "${KSEARCH_ROOT}/generate_kernels_and_eval.py" \
   --model-name "${MODEL_NAME}" \
   ${API_KEY:+--api-key "${API_KEY}"} \
   ${BASE_URL:+--base-url "${BASE_URL}"} \
+  ${USE_CLAUDE_CLI:+--use-claude-cli} \
   --language "${LANGUAGE}" \
   --target-gpu "${TARGET_GPU}" \
   --world-model \

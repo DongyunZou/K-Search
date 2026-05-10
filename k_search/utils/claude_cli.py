@@ -2,7 +2,9 @@
 
 Lets K-Search use a logged-in Claude Code CLI (subscription auth) instead of
 an OpenAI-compatible HTTP endpoint. The prompt is piped via stdin to avoid
-argv length limits; tools are disabled so the call is pure chat-completion.
+argv length limits; tools are disabled so the call is pure chat-completion;
+`--effort low` is required because Opus 4.7's default high effort enters
+extended-thinking mode and can take 10+ minutes per call on complex prompts.
 """
 from __future__ import annotations
 
@@ -19,14 +21,15 @@ def call_claude_cli(
     prompt: str,
     *,
     model: Optional[str] = None,
-    timeout: float = 900.0,
+    effort: str = "medium",
+    timeout: float = 1800.0,
     cwd: Optional[str] = None,
 ) -> str:
-    """Invoke `claude -p` and return the stripped text response.
+    """Invoke `claude -p` and return the stripped stdout response.
 
-    Tools are disabled (`--tools ""`) so Claude responds purely with text and
-    cannot invoke Bash/Edit/etc. Permission/workspace-trust prompts are skipped
-    automatically in -p mode. Raises ClaudeCLIError on non-zero exit.
+    Tools are disabled (`--tools ""`) so Claude responds purely with text.
+    Permission/workspace-trust prompts are skipped automatically in -p mode.
+    Raises ClaudeCLIError on non-zero exit or timeout.
     """
     if shutil.which("claude") is None:
         raise ClaudeCLIError(
@@ -34,7 +37,7 @@ def call_claude_cli(
             "(https://docs.claude.com/en/docs/claude-code/) to use --use-claude-cli."
         )
 
-    args = ["claude", "-p", "--tools", "", "--output-format", "text"]
+    args = ["claude", "-p", "--tools", "", "--output-format", "text", "--effort", effort]
     if model:
         args += ["--model", model]
 
